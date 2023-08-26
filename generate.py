@@ -26,6 +26,8 @@ def get_words():
         if explanation == "": continue
         trans_dict[t] = explanation
 
+        # TODO: Create a database where we store explanations to be nicer to wiktionary
+
     for it in intrans:
         it_page = mediawiki.page(it)
         in_explanation = it_page.section("Verb")
