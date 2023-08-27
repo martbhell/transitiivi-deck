@@ -9,34 +9,150 @@ import mediawikiapi
 #  - https://en.wiktionary.org/wiki/Category:Finnish_intransitive_verbs
 #  - add words and explanation and if transitive or intransitive
 
+import sqlite3
+from sqlite3 import Error
+
+
+def create_connection(db_file):
+    """ create a database connection to a SQLite database """
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+        print(sqlite3.version)
+    except Error as e:
+        print(e)
+#    finally:
+#        if conn:
+#            conn.close()
+
+    return conn
+
+
+def create_table(conn, create_table_sql):
+    """ create a table from the create_table_sql statement
+    :param conn: Connection object
+    :param create_table_sql: a CREATE TABLE statement
+    :return:
+    """
+    try:
+        c = conn.cursor()
+        c.execute(create_table_sql)
+    except Error as e:
+        print(e)
+
+
+
+def create_verb(conn, verb):
+    """
+    Create a new project into the projects table
+    :param conn:
+    :param verb (verb, explanation, transitiivi)
+    :return: project id
+    """
+    sql = ''' INSERT INTO verbs(verb,explanation,transitiivi)
+              VALUES(?,?,?) '''
+    cur = conn.cursor()
+    cur.execute(sql, verb)
+    conn.commit()
+    return cur.lastrowid
+
+
+def select_verb(conn, verb):
+    """
+    Query verbs by verb
+    :param conn: the Connection object
+    :param verb:
+    :return:
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM verbs WHERE verb=?", (verb,))
+
+    rows = cur.fetchall()
+
+    return(rows)
+
 
 def get_words():
     """ parse wiktionary """
 
     mediawiki = mediawikiapi.MediaWikiAPI(config=mediawikiapi.Config(mediawiki_url="https://{}.wiktionary.org/w/api.php"))
 
-    trans = mediawiki.category_members(title="Finnish_transitive_verbs", cmlimit=5)
-    intrans = mediawiki.category_members(title="Finnish_intransitive_verbs", cmlimit=5)
+    trans = mediawiki.category_members(title="Finnish_transitive_verbs", cmlimit=50)
+    intrans = mediawiki.category_members(title="Finnish_intransitive_verbs", cmlimit=50)
+
+    common = parse_csc()
+    conn = create_connection(r"pythonsqlite.db")
+    create_table(conn, sql_create_verbs_table)
 
     trans_dict = {}
     intrans_dict = {}
     for t in trans:
+        if t not in common:
+            print(f"skipping {t}")
+            continue
+        else:
+            print(f"found: {t}")
+
+        # check if in db
+        # if not add one to these columns:
+        #  - verb (yep)
+        #  - explanation (yep)
+        #  - transitiivi (true/false)
+
+        db_query = select_verb(conn, t)
+        if len(db_query) > 0:
+            print("It's in the DB already!")
+            trans_dict[t] = db_query[0][2]
+            continue
+
         t_page = mediawiki.page(t)
         explanation = t_page.section("Verb")
-        if explanation == "": continue
+        if explanation.strip() == "": continue
         trans_dict[t] = explanation
 
-        # TODO: Create a database where we store explanations to be nicer to wiktionary
+        insert = (t, explanation, 1)
+        create_verb(conn, insert)
+
 
     for it in intrans:
+        if it not in common:
+            print(f"skipping {it}")
+            continue
+        else:
+            print(f"found: {it}")
+
+        it_db_query = select_verb(conn, it)
+        if len(it_db_query) > 0:
+            print("It's in the DB already!")
+            intrans_dict[it] = it_db_query[0][2]
+            continue
+
+
         it_page = mediawiki.page(it)
         in_explanation = it_page.section("Verb")
-        if in_explanation == "": continue
+        if in_explanation.strip() == "": continue
         intrans_dict[it] = in_explanation
 
+        itinsert = (it, explanation, 0)
+        create_verb(conn, itinsert)
+
+    conn.close()
 
     return(trans_dict, intrans_dict)
 
+def parse_csc():
+
+    common_verbs = []
+
+    with open('suomen-sanomalehtikielen-taajuussanasto-B9996.txt') as f:
+        lines = f.readlines()
+    for line in lines:
+        if "(verbi" in line:
+            cleanup = line.strip()
+            verbi = cleanup.split(" ")[7]
+            common_verbs.append(verbi)
+
+    return common_verbs
 
 def main():
     """The Thing"""
@@ -85,8 +201,16 @@ def main():
     genanki.Package(deck).write_to_file("transitiivi-deck.apkg")
 
     # TODO: Add to GitHub actions and make a release out of this
-    # TODO: Perhaps prune esoteric / weird words.
     # TODO: Any other sources of verbs?
 
+
+#########
+
+sql_create_verbs_table = """ CREATE TABLE IF NOT EXISTS verbs (
+                                        id integer PRIMARY KEY,
+                                        verb text NOT NULL,
+                                        explanation text,
+                                        transitiivi text
+                         ); """
 
 main()
