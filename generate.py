@@ -88,10 +88,10 @@ def get_words():
     intrans_dict = {}
     for t in trans:
         if t not in common:
-            print(f"skipping {t}")
+            #print(f"skipping {t}")
             continue
-        else:
-            print(f"found: {t}")
+        #else:
+        #    print(f"found: {t}")
 
         # check if in db
         # if not add one to these columns:
@@ -116,10 +116,10 @@ def get_words():
 
     for it in intrans:
         if it not in common:
-            print(f"skipping {it}")
+            #print(f"skipping {it}")
             continue
-        else:
-            print(f"found: {it}")
+        #else:
+        #    print(f"found: {it}")
 
         it_db_query = select_verb(conn, it)
         if len(it_db_query) > 0:
@@ -158,13 +158,19 @@ def main():
     """The Thing"""
 
     trans, intrans = get_words()
-    print(trans)
-    print(intrans)
 
-    words = [
-        ("verb1", "trans|intrans + explanation"),
-        ("verb2", "trans|intrans + explanation"),
-    ]
+    words = []
+    for k in trans:
+        value = trans[k]
+        words.append((k, value))
+
+    print(words)
+
+#    data structure
+#    words = [
+#        ("verb1", "trans|intrans + explanation"),
+#        ("verb2", "trans|intrans + explanation"),
+#    ]
 
     # Define Anki note model
     model_id = 1699392319  ## TODO
@@ -184,7 +190,7 @@ def main():
             {
                 "name": "Card 2",
                 "qfmt": "{{Verb}}",
-                "afmt": "{{Directory}}",
+                "afmt": "{{Description}}",
             },
         ],
     )
