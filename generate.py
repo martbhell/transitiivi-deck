@@ -133,7 +133,7 @@ def get_words():
         if in_explanation.strip() == "": continue
         intrans_dict[it] = in_explanation
 
-        itinsert = (it, explanation, 0)
+        itinsert = (it, in_explanation, 0)
         create_verb(conn, itinsert)
 
     conn.close()
