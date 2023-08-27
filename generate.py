@@ -1,35 +1,36 @@
 """ Script to generate an .apkg ankiweb deck with verbs from a wiktionary category """
 
+import sqlite3
+from sqlite3 import Error
+
 import genanki
 
 import mediawikiapi
+
 # scrape wiktionary with beautifulsoup4:
 #  - visit https://en.wiktionary.org/wiki/Category:Finnish_transitive_verbs
 #  - follow links til we get to the end
 #  - https://en.wiktionary.org/wiki/Category:Finnish_intransitive_verbs
 #  - add words and explanation and if transitive or intransitive
 
-import sqlite3
-from sqlite3 import Error
-
 
 def create_connection(db_file):
-    """ create a database connection to a SQLite database """
+    """create a database connection to a SQLite database"""
     conn = None
     try:
         conn = sqlite3.connect(db_file)
         print(sqlite3.version)
     except Error as e:
         print(e)
-#    finally:
-#        if conn:
-#            conn.close()
+    #    finally:
+    #        if conn:
+    #            conn.close()
 
     return conn
 
 
 def create_table(conn, create_table_sql):
-    """ create a table from the create_table_sql statement
+    """create a table from the create_table_sql statement
     :param conn: Connection object
     :param create_table_sql: a CREATE TABLE statement
     :return:
@@ -41,7 +42,6 @@ def create_table(conn, create_table_sql):
         print(e)
 
 
-
 def create_verb(conn, verb):
     """
     Create a new project into the projects table
@@ -49,8 +49,8 @@ def create_verb(conn, verb):
     :param verb (verb, explanation, transitiivi)
     :return: project id
     """
-    sql = ''' INSERT INTO verbs(verb,explanation,transitiivi)
-              VALUES(?,?,?) '''
+    sql = """ INSERT INTO verbs(verb,explanation,transitiivi)
+              VALUES(?,?,?) """
     cur = conn.cursor()
     cur.execute(sql, verb)
     conn.commit()
@@ -69,16 +69,22 @@ def select_verb(conn, verb):
 
     rows = cur.fetchall()
 
-    return(rows)
+    return rows
 
 
 def get_words():
-    """ parse wiktionary """
+    """parse wiktionary"""
 
-    mediawiki = mediawikiapi.MediaWikiAPI(config=mediawikiapi.Config(mediawiki_url="https://{}.wiktionary.org/w/api.php"))
+    mediawiki = mediawikiapi.MediaWikiAPI(
+        config=mediawikiapi.Config(
+            mediawiki_url="https://{}.wiktionary.org/w/api.php", rate_limit=10
+        )
+    )
 
-    trans = mediawiki.category_members(title="Finnish_transitive_verbs", cmlimit=50)
-    intrans = mediawiki.category_members(title="Finnish_intransitive_verbs", cmlimit=50)
+    trans = mediawiki.category_members(title="Finnish_transitive_verbs", cmlimit=6550)
+    intrans = mediawiki.category_members(
+        title="Finnish_intransitive_verbs", cmlimit=6550
+    )
 
     common = parse_csc()
     conn = create_connection(r"pythonsqlite.db")
@@ -88,10 +94,9 @@ def get_words():
     intrans_dict = {}
     for t in trans:
         if t not in common:
-            #print(f"skipping {t}")
+            print(f"skipping {t}")
             continue
-        #else:
-        #    print(f"found: {t}")
+        print(f"found: {t}")
 
         # check if in db
         # if not add one to these columns:
@@ -107,19 +112,18 @@ def get_words():
 
         t_page = mediawiki.page(t)
         explanation = t_page.section("Verb")
-        if explanation.strip() == "": continue
+        if explanation.strip() == "":
+            continue
         trans_dict[t] = explanation
 
         insert = (t, explanation, 1)
         create_verb(conn, insert)
 
-
     for it in intrans:
         if it not in common:
-            #print(f"skipping {it}")
+            print(f"skipping {it}")
             continue
-        #else:
-        #    print(f"found: {it}")
+        print(f"found: {it}")
 
         it_db_query = select_verb(conn, it)
         if len(it_db_query) > 0:
@@ -127,10 +131,10 @@ def get_words():
             intrans_dict[it] = it_db_query[0][2]
             continue
 
-
         it_page = mediawiki.page(it)
         in_explanation = it_page.section("Verb")
-        if in_explanation.strip() == "": continue
+        if in_explanation.strip() == "":
+            continue
         intrans_dict[it] = in_explanation
 
         itinsert = (it, in_explanation, 0)
@@ -138,13 +142,16 @@ def get_words():
 
     conn.close()
 
-    return(trans_dict, intrans_dict)
+    return (trans_dict, intrans_dict)
+
 
 def parse_csc():
-
+    """parse the common words from finnish news papers"""
     common_verbs = []
 
-    with open('suomen-sanomalehtikielen-taajuussanasto-B9996.txt') as f:
+    with open(
+        "suomen-sanomalehtikielen-taajuussanasto-B9996.txt", encoding="utf-8"
+    ) as f:
         lines = f.readlines()
     for line in lines:
         if "(verbi" in line:
@@ -153,6 +160,7 @@ def parse_csc():
             common_verbs.append(verbi)
 
     return common_verbs
+
 
 def main():
     """The Thing"""
@@ -164,13 +172,18 @@ def main():
         value = trans[k]
         words.append((k, value))
 
-    print(words)
+    for c in intrans:
+        valuec = intrans[c]
+        words.append((c, valuec))
 
-#    data structure
-#    words = [
-#        ("verb1", "trans|intrans + explanation"),
-#        ("verb2", "trans|intrans + explanation"),
-#    ]
+    print(words)
+    print(len(words))
+
+    #    data structure
+    #    words = [
+    #        ("verb1", "trans|intrans + explanation"),
+    #        ("verb2", "trans|intrans + explanation"),
+    #    ]
 
     # Define Anki note model
     model_id = 1699392319  ## TODO
